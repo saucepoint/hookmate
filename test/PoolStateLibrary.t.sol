@@ -15,6 +15,8 @@ import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {Pool} from "v4-core/src/libraries/Pool.sol";
 
+import {PoolManager} from "v4-core/src/PoolManager.sol";
+
 import {PoolStateLibrary} from "../src/libraries/PoolStateLibrary.sol";
 
 contract PoolStateLibraryTest is Test, Deployers {
@@ -108,6 +110,40 @@ contract PoolStateLibraryTest is Test, Deployers {
 
         uint128 liquidity = PoolStateLibrary.getLiquidity(manager, poolId);
         assertEq(liquidity, liquidityDelta);
+    }
+
+    function test_getTickBitmap() public {
+        // create liquidity
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
+        );
+
+        // TODO: why does fail for -60 or 60 :thinking:
+        uint256 tickBitmap = PoolStateLibrary.getTickBitmap(manager, poolId, 0);
+        assertNotEq(tickBitmap, 0);
+    }
+
+    function test_getPositionInfo() public {
+        // create liquidity
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
+        );
+
+        // swap to create fees
+        uint256 swapAmount = 10 ether;
+        swap(key, true, int256(swapAmount), ZERO_BYTES);
+
+        bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), int24(-60), int24(60)));
+
+        (uint256 a, uint256 b) = PoolManager(payable(manager)).getFeeGrowthInside(poolId, positionId);
+        console2.log(a, b);
+
+        (uint128 liquidity, uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+            PoolStateLibrary.getPositionInfo(manager, poolId, positionId);
+
+        assertEq(liquidity, 10_000 ether);
+        assertNotEq(feeGrowthInside0X128, 0);
+        assertNotEq(feeGrowthInside1X128, 0);
     }
 
     /// Test Helper

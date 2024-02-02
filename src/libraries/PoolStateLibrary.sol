@@ -59,4 +59,46 @@ library PoolStateLibrary {
 
         liquidity = uint128(uint256(manager.extsload(slot)));
     }
+
+    function getTickBitmap(IPoolManager manager, PoolId poolId, int16 tick)
+        internal
+        view
+        returns (uint256 tickBitmap)
+    {
+        // value slot of poolId key: `pools[poolId]`
+        bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
+
+        // reads 6th word of Pool.State, `mapping(int16 => uint256) tickBitmap;`
+        bytes32 tickBitmapMapping = bytes32(uint256(stateSlot) + uint256(5));
+
+        // value slot of the mapping key: `pools[poolId].tickBitmap[tick]
+        bytes32 slot = keccak256(abi.encodePacked(int256(tick), tickBitmapMapping));
+
+        tickBitmap = uint256(manager.extsload(slot));
+    }
+
+    function getPositionInfo(IPoolManager manager, PoolId poolId, bytes32 positionId)
+        internal
+        view
+        returns (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128)
+    {
+        // value slot of poolId key: `pools[poolId]`
+        bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
+
+        // reads 7th word of Pool.State, `mapping(bytes32 => Position.Info) positions;`
+        bytes32 positionMapping = bytes32(uint256(stateSlot) + uint256(6));
+
+        // first value slot of the mapping key: `pools[poolId].positions[positionId] (liquidity)
+        bytes32 slot0 = keccak256(abi.encodePacked(positionId, positionMapping));
+
+        // second value slot of the mapping key: `pools[poolId].positions[positionId].feeGrowthInside0LastX128`
+        bytes32 slot1 = bytes32(uint256(slot0) + uint256(1));
+
+        // third value slot of the mapping key: `pools[poolId].positions[positionId].feeGrowthInside1LastX128`
+        bytes32 slot2 = bytes32(uint256(slot0) + uint256(2));
+
+        liquidity = uint128(uint256(manager.extsload(slot0)));
+        feeGrowthInside0LastX128 = uint256(manager.extsload(slot1));
+        feeGrowthInside1LastX128 = uint256(manager.extsload(slot2));
+    }
 }
