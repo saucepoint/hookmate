@@ -12,14 +12,18 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {PoolStateLibrary} from "../src/libraries/PoolStateLibrary.sol";
 
 contract PoolStateLibraryTest is Test, Deployers {
+    using FixedPointMathLib for uint256;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
 
     PoolId poolId;
+
+    uint256 internal constant Q128 = 0x100000000000000000000000000000000;
 
     function setUp() public {
         // creates the pool manager, utility routers, and test tokens
@@ -40,6 +44,46 @@ contract PoolStateLibraryTest is Test, Deployers {
         // console2.log("liquidityNet", liquidityNet);
 
         assertEq(liquidityGross, 10 ether);
+    }
+
+    function test_getFeeGrowthGlobal0() public {
+        // create liquidity
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
+        );
+
+        (uint256 feeGrowthGlobal0, uint256 feeGrowthGlobal1) = PoolStateLibrary.getFeeGrowthGlobal(manager, poolId);
+        assertEq(feeGrowthGlobal0, 0);
+        assertEq(feeGrowthGlobal1, 0);
+
+        // swap to create fees on the output token (currency1)
+        uint256 swapAmount = 10 ether;
+        swap(key, true, int256(swapAmount), ZERO_BYTES);
+
+        (feeGrowthGlobal0, feeGrowthGlobal1) = PoolStateLibrary.getFeeGrowthGlobal(manager, poolId);
+
+        assertEq(feeGrowthGlobal0, swapAmount.mulWadDown(0.003e18) * Q128);
+        assertEq(feeGrowthGlobal1, 0);
+    }
+
+    function test_getFeeGrowthGlobal1() public {
+        // create liquidity
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
+        );
+
+        (uint256 feeGrowthGlobal0, uint256 feeGrowthGlobal1) = PoolStateLibrary.getFeeGrowthGlobal(manager, poolId);
+        assertEq(feeGrowthGlobal0, 0);
+        assertEq(feeGrowthGlobal1, 0);
+
+        // swap to create fees on the input token (currency0)
+        uint256 swapAmount = 10 ether;
+        swap(key, false, int256(swapAmount), ZERO_BYTES);
+
+        (feeGrowthGlobal0, feeGrowthGlobal1) = PoolStateLibrary.getFeeGrowthGlobal(manager, poolId);
+
+        assertEq(feeGrowthGlobal0, 0);
+        assertEq(feeGrowthGlobal1, swapAmount.mulWadDown(0.003e18) * Q128);
     }
 
     /// Test Helper

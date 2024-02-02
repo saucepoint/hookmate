@@ -31,4 +31,22 @@ library PoolStateLibrary {
             liquidityNet := and(value, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
         }
     }
+
+    function getFeeGrowthGlobal(IPoolManager manager, PoolId poolId)
+        internal
+        view
+        returns (uint256 feeGrowthGlobal0, uint256 feeGrowthGlobal1)
+    {
+        // value slot of poolId key: `pools[poolId]`
+        bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
+
+        // reads 2nd word of Pool.State, `uint256 feeGrowthGlobal0X128`
+        bytes32 slot_feeGrowthGlobal0X128 = bytes32(uint256(stateSlot) + uint256(1));
+
+        // reads 3rd word of Pool.State, `uint256 feeGrowthGlobal1X128`
+        bytes32 slot_feeGrowthGlobal1X128 = bytes32(uint256(stateSlot) + uint256(2));
+
+        feeGrowthGlobal0 = uint256(manager.extsload(slot_feeGrowthGlobal0X128));
+        feeGrowthGlobal1 = uint256(manager.extsload(slot_feeGrowthGlobal1X128));
+    }
 }
