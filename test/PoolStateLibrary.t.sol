@@ -13,6 +13,7 @@ import {CurrencyLibrary, Currency} from "v4-core/src/types/Currency.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {Pool} from "v4-core/src/libraries/Pool.sol";
 
 import {PoolStateLibrary} from "../src/libraries/PoolStateLibrary.sol";
 
@@ -84,6 +85,29 @@ contract PoolStateLibraryTest is Test, Deployers {
 
         assertEq(feeGrowthGlobal0, 0);
         assertEq(feeGrowthGlobal1, swapAmount.mulWadDown(0.003e18) * Q128);
+    }
+
+    function test_getLiquidity() public {
+        modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(-60, 60, 10 ether), ZERO_BYTES);
+        modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(-120, 120, 10 ether), ZERO_BYTES);
+
+        uint128 liquidity = PoolStateLibrary.getLiquidity(manager, poolId);
+        assertEq(liquidity, 20 ether);
+    }
+
+    function test_getLiquidity_fuzz(uint128 liquidityDelta) public {
+        vm.assume(liquidityDelta != 0);
+        vm.assume(liquidityDelta < Pool.tickSpacingToMaxLiquidityPerTick(key.tickSpacing));
+        modifyLiquidityRouter.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams(
+                TickMath.minUsableTick(60), TickMath.maxUsableTick(60), int256(uint256(liquidityDelta))
+            ),
+            ZERO_BYTES
+        );
+
+        uint128 liquidity = PoolStateLibrary.getLiquidity(manager, poolId);
+        assertEq(liquidity, liquidityDelta);
     }
 
     /// Test Helper

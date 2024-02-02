@@ -49,4 +49,14 @@ library PoolStateLibrary {
         feeGrowthGlobal0 = uint256(manager.extsload(slot_feeGrowthGlobal0X128));
         feeGrowthGlobal1 = uint256(manager.extsload(slot_feeGrowthGlobal1X128));
     }
+
+    function getLiquidity(IPoolManager manager, PoolId poolId) internal view returns (uint128 liquidity) {
+        // value slot of poolId key: `pools[poolId]`
+        bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
+
+        // reads 4th word of Pool.State, `uint128 liquidity`
+        bytes32 slot = bytes32(uint256(stateSlot) + uint256(3));
+
+        liquidity = uint128(uint256(manager.extsload(slot)));
+    }
 }
