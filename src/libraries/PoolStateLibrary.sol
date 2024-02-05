@@ -32,6 +32,27 @@ library PoolStateLibrary {
         }
     }
 
+    function getTickFeeGrowthOutside(IPoolManager manager, PoolId poolId, int24 tick)
+        internal
+        view
+        returns (uint256 feeGrowthOutside0X128, uint256 feeGrowthOutside1X128)
+    {
+        // value slot of poolId key: `pools[poolId]`
+        bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
+
+        // reads 5th word of Pool.State, `mapping(int24 => TickInfo) ticks`
+        bytes32 ticksMapping = bytes32(uint256(stateSlot) + uint256(4));
+
+        // value slot of the tick key: `pools[poolId].ticks[tick]
+        bytes32 slot = keccak256(abi.encodePacked(int256(tick), ticksMapping));
+
+        bytes32 value = manager.extsload(slot);
+        assembly {
+            liquidityGross := shr(128, value)
+            liquidityNet := and(value, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+        }
+    }
+
     function getFeeGrowthGlobal(IPoolManager manager, PoolId poolId)
         internal
         view
