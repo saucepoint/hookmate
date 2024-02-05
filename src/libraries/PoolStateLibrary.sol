@@ -46,11 +46,11 @@ library PoolStateLibrary {
         // value slot of the tick key: `pools[poolId].ticks[tick]
         bytes32 slot = keccak256(abi.encodePacked(int256(tick), ticksMapping));
 
-        bytes32 value = manager.extsload(slot);
-        assembly {
-            liquidityGross := shr(128, value)
-            liquidityNet := and(value, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
-        }
+        bytes32 slot1 = bytes32(uint256(slot) + uint256(1));
+        bytes32 slot2 = bytes32(uint256(slot) + uint256(2));
+
+        feeGrowthOutside0X128 = uint256(manager.extsload(slot1));
+        feeGrowthOutside1X128 = uint256(manager.extsload(slot2));
     }
 
     function getFeeGrowthGlobal(IPoolManager manager, PoolId poolId)

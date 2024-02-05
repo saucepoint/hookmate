@@ -135,15 +135,41 @@ contract PoolStateLibraryTest is Test, Deployers {
 
         bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), int24(-60), int24(60)));
 
-        (uint256 a, uint256 b) = PoolManager(payable(manager)).getFeeGrowthInside(poolId, positionId);
-        console2.log(a, b);
-
         (uint128 liquidity, uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
             PoolStateLibrary.getPositionInfo(manager, poolId, positionId);
 
+        // TODO: verify why its zero?
         assertEq(liquidity, 10_000 ether);
         assertNotEq(feeGrowthInside0X128, 0);
         assertNotEq(feeGrowthInside1X128, 0);
+    }
+
+    function test_getTickFeeGrowthOutside() public {
+        // create liquidity
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
+        );
+
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-600, 600, 10_000 ether), ZERO_BYTES
+        );
+
+        // swap to create fees, crossing a tick
+        uint256 swapAmount = 100 ether;
+        swap(key, true, int256(swapAmount), ZERO_BYTES);
+        (, int24 currentTick,) = manager.getSlot0(poolId);
+        assertEq(currentTick, -139);
+
+        int24 tick = -60;
+        (uint256 feeGrowthOutside0X128, uint256 feeGrowthOutside1X128) =
+            PoolStateLibrary.getTickFeeGrowthOutside(manager, poolId, tick);
+
+        (uint256 outside0, uint256 outside1) = PoolManager(payable(manager)).getTickFeeGrowthOutside(poolId, tick);
+
+        assertNotEq(feeGrowthOutside0X128, 0);
+        assertEq(feeGrowthOutside1X128, 0);
+        assertEq(feeGrowthOutside0X128, outside0);
+        assertEq(feeGrowthOutside1X128, outside1);
     }
 
     /// Test Helper
