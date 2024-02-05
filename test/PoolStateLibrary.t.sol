@@ -129,17 +129,24 @@ contract PoolStateLibraryTest is Test, Deployers {
             key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
         );
 
-        // swap to create fees
-        uint256 swapAmount = 10 ether;
-        swap(key, true, int256(swapAmount), ZERO_BYTES);
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-600, 600, 10_000 ether), ZERO_BYTES
+        );
 
-        bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), int24(-60), int24(60)));
+        // swap to create fees, crossing a tick
+        uint256 swapAmount = 100 ether;
+        swap(key, true, int256(swapAmount), ZERO_BYTES);
+        (, int24 currentTick,) = manager.getSlot0(poolId);
+        assertEq(currentTick, -139);
+
+        bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), int24(-600), int24(600)));
 
         (uint128 liquidity, uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
             PoolStateLibrary.getPositionInfo(manager, poolId, positionId);
 
-        // TODO: verify why its zero?
         assertEq(liquidity, 10_000 ether);
+
+        // TODO: verify why its zero?
         assertNotEq(feeGrowthInside0X128, 0);
         assertNotEq(feeGrowthInside1X128, 0);
     }
@@ -170,6 +177,40 @@ contract PoolStateLibraryTest is Test, Deployers {
         assertEq(feeGrowthOutside1X128, 0);
         assertEq(feeGrowthOutside0X128, outside0);
         assertEq(feeGrowthOutside1X128, outside1);
+    }
+
+    function test_getTickInfo() public {
+        // create liquidity
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
+        );
+
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-600, 600, 10_000 ether), ZERO_BYTES
+        );
+
+        // swap to create fees, crossing a tick
+        uint256 swapAmount = 100 ether;
+        swap(key, true, int256(swapAmount), ZERO_BYTES);
+        (, int24 currentTick,) = manager.getSlot0(poolId);
+        assertEq(currentTick, -139);
+
+        int24 tick = -60;
+        (uint128 liquidityGross, int128 liquidityNet, uint256 feeGrowthOutside0X128, uint256 feeGrowthOutside1X128) =
+            PoolStateLibrary.getTickInfo(manager, poolId, tick);
+
+        (uint128 liquidityGross_, int128 liquidityNet_) = PoolStateLibrary.getTickLiquidity(manager, poolId, tick);
+        (uint256 feeGrowthOutside0X128_, uint256 feeGrowthOutside1X128_) =
+            PoolStateLibrary.getTickFeeGrowthOutside(manager, poolId, tick);
+
+        assertEq(liquidityGross, 10_000 ether);
+        assertEq(liquidityGross, liquidityGross_);
+        assertEq(liquidityNet, liquidityNet_);
+
+        assertNotEq(feeGrowthOutside0X128, 0);
+        assertEq(feeGrowthOutside1X128, 0);
+        assertEq(feeGrowthOutside0X128, feeGrowthOutside0X128_);
+        assertEq(feeGrowthOutside1X128, feeGrowthOutside1X128_);
     }
 
     /// Test Helper

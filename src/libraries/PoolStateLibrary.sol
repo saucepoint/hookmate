@@ -11,6 +11,35 @@ library PoolStateLibrary {
     // | pools                 | mapping(PoolId => struct Pool.State)                                | 8    | 0      | 32    | lib/v4-core/src/PoolManager.sol:PoolManager |
     uint256 public constant POOLS_SLOT = 8;
 
+    function getTickInfo(IPoolManager manager, PoolId poolId, int24 tick)
+        internal
+        view
+        returns (
+            uint128 liquidityGross,
+            int128 liquidityNet,
+            uint256 feeGrowthOutside0X128,
+            uint256 feeGrowthOutside1X128
+        )
+    {
+        // value slot of poolId key: `pools[poolId]`
+        bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
+
+        // reads 5th word of Pool.State, `mapping(int24 => TickInfo) ticks`
+        bytes32 ticksMapping = bytes32(uint256(stateSlot) + uint256(4));
+
+        // value slot of the tick key: `pools[poolId].ticks[tick]
+        bytes32 slot = keccak256(abi.encodePacked(int256(tick), ticksMapping));
+
+        // read all 3 words of the TickInfo struct
+        bytes memory data = manager.extsload(slot, 3);
+        assembly {
+            liquidityGross := shr(128, mload(add(data, 32)))
+            liquidityNet := and(mload(add(data, 32)), 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+            feeGrowthOutside0X128 := mload(add(data, 64))
+            feeGrowthOutside1X128 := mload(add(data, 96))
+        }
+    }
+
     function getTickLiquidity(IPoolManager manager, PoolId poolId, int24 tick)
         internal
         view
@@ -46,11 +75,11 @@ library PoolStateLibrary {
         // value slot of the tick key: `pools[poolId].ticks[tick]
         bytes32 slot = keccak256(abi.encodePacked(int256(tick), ticksMapping));
 
-        bytes32 slot1 = bytes32(uint256(slot) + uint256(1));
-        bytes32 slot2 = bytes32(uint256(slot) + uint256(2));
-
-        feeGrowthOutside0X128 = uint256(manager.extsload(slot1));
-        feeGrowthOutside1X128 = uint256(manager.extsload(slot2));
+        bytes memory data = manager.extsload(slot, 3);
+        assembly {
+            feeGrowthOutside0X128 := mload(add(data, 64))
+            feeGrowthOutside1X128 := mload(add(data, 96))
+        }
     }
 
     function getFeeGrowthGlobal(IPoolManager manager, PoolId poolId)
@@ -110,16 +139,53 @@ library PoolStateLibrary {
         bytes32 positionMapping = bytes32(uint256(stateSlot) + uint256(6));
 
         // first value slot of the mapping key: `pools[poolId].positions[positionId] (liquidity)
-        bytes32 slot0 = keccak256(abi.encodePacked(positionId, positionMapping));
+        bytes32 slot = keccak256(abi.encodePacked(positionId, positionMapping));
 
-        // second value slot of the mapping key: `pools[poolId].positions[positionId].feeGrowthInside0LastX128`
-        bytes32 slot1 = bytes32(uint256(slot0) + uint256(1));
+        // // second value slot of the mapping key: `pools[poolId].positions[positionId].feeGrowthInside0LastX128`
+        // bytes32 slot1 = bytes32(uint256(slot0) + uint256(1));
 
-        // third value slot of the mapping key: `pools[poolId].positions[positionId].feeGrowthInside1LastX128`
-        bytes32 slot2 = bytes32(uint256(slot0) + uint256(2));
+        // // third value slot of the mapping key: `pools[poolId].positions[positionId].feeGrowthInside1LastX128`
+        // bytes32 slot2 = bytes32(uint256(slot0) + uint256(2));
 
-        liquidity = uint128(uint256(manager.extsload(slot0)));
-        feeGrowthInside0LastX128 = uint256(manager.extsload(slot1));
-        feeGrowthInside1LastX128 = uint256(manager.extsload(slot2));
+        // read all 3 words of the Position.Info struct
+        bytes memory data = manager.extsload(slot, 3);
+
+        assembly {
+            liquidity := mload(add(data, 32))
+            feeGrowthInside0LastX128 := mload(add(data, 64))
+            feeGrowthInside1LastX128 := mload(add(data, 96))
+        }
+
+        // liquidity = uint128(uint256(manager.extsload(slot0)));
+        // feeGrowthInside0LastX128 = uint256(manager.extsload(slot1));
+        // feeGrowthInside1LastX128 = uint256(manager.extsload(slot2));
+    }
+
+    // Calculates the fee growth inside a tick range. More reliable than `feeGrowthInside0LastX128` returned by getPositionInfo
+    function getFeeGrowthInside(IPoolManager manager, PoolId poolId, int24 tickLower, int24 tickUpper)
+        internal
+        view
+        returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
+    {
+        uint256 feeGrowthGlobal0X128;
+        uint256 feeGrowthGlobal1X128;
+
+        (uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128) =
+            getTickFeeGrowthOutside(manager, poolId, tickLower);
+        (uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128) =
+            getTickFeeGrowthOutside(manager, poolId, tickUpper);
+        int24 tickCurrent; // slot0.tick
+        unchecked {
+            if (tickCurrent < tickLower) {
+                feeGrowthInside0X128 = lowerFeeGrowthOutside0X128 - upperFeeGrowthOutside0X128;
+                feeGrowthInside1X128 = lowerFeeGrowthOutside1X128 - upperFeeGrowthOutside1X128;
+            } else if (tickCurrent >= tickUpper) {
+                feeGrowthInside0X128 = upperFeeGrowthOutside0X128 - lowerFeeGrowthOutside0X128;
+                feeGrowthInside1X128 = upperFeeGrowthOutside1X128 - lowerFeeGrowthOutside1X128;
+            } else {
+                feeGrowthInside0X128 = feeGrowthGlobal0X128 - lowerFeeGrowthOutside0X128 - upperFeeGrowthOutside0X128;
+                feeGrowthInside1X128 = feeGrowthGlobal1X128 - lowerFeeGrowthOutside1X128 - upperFeeGrowthOutside1X128;
+            }
+        }
     }
 }
