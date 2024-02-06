@@ -11,6 +11,27 @@ library PoolStateLibrary {
     // | pools                 | mapping(PoolId => struct Pool.State)                                | 8    | 0      | 32    | lib/v4-core/src/PoolManager.sol:PoolManager |
     uint256 public constant POOLS_SLOT = 8;
 
+    function getSlot0(IPoolManager manager, PoolId poolId)
+        internal
+        view
+        returns (uint160 sqrtPriceX96, int24 tick, uint16 protocolFee, uint24 swapFee)
+    {
+        // value slot of poolId key: `pools[poolId]`
+        bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
+
+        bytes32 data = manager.extsload(stateSlot);
+        assembly {
+            // first 160 bits of data
+            sqrtPriceX96 := shr(96, data)
+            // next 24 bits of data
+            tick := and(shr(160, data), 0xFFFFFF)
+            // next 16 bits of data
+            protocolFee := and(shr(186, data), 0xFFFF)
+            // last 24 bits of data
+            swapFee := and(data, 0xFFFFFF)
+        }
+    }
+
     function getTickInfo(IPoolManager manager, PoolId poolId, int24 tick)
         internal
         view
@@ -167,8 +188,7 @@ library PoolStateLibrary {
         view
         returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
     {
-        uint256 feeGrowthGlobal0X128;
-        uint256 feeGrowthGlobal1X128;
+        (uint256 feeGrowthGlobal0X128, uint256 feeGrowthGlobal1X128) = getFeeGrowthGlobal(manager, poolId);
 
         (uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128) =
             getTickFeeGrowthOutside(manager, poolId, tickLower);
