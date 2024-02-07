@@ -189,7 +189,7 @@ library PoolStateLibrary {
             getTickFeeGrowthOutside(manager, poolId, tickLower);
         (uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128) =
             getTickFeeGrowthOutside(manager, poolId, tickUpper);
-        int24 tickCurrent; // slot0.tick
+        (, int24 tickCurrent,,) = getSlot0(manager, poolId);
         unchecked {
             if (tickCurrent < tickLower) {
                 feeGrowthInside0X128 = lowerFeeGrowthOutside0X128 - upperFeeGrowthOutside0X128;

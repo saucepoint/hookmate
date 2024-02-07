@@ -168,16 +168,18 @@ contract PoolStateLibraryTest is Test, Deployers {
         (, int24 currentTick,) = manager.getSlot0(poolId);
         assertEq(currentTick, -139);
 
-        bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), int24(-600), int24(600)));
+        // poke the LP so that fees are updated
+        modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(-60, 60, 0), ZERO_BYTES);
+
+        bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), int24(-60), int24(60)));
 
         (uint128 liquidity, uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
             PoolStateLibrary.getPositionInfo(manager, poolId, positionId);
 
         assertEq(liquidity, 10_000 ether);
 
-        // TODO: verify why its zero?
         assertNotEq(feeGrowthInside0X128, 0);
-        assertNotEq(feeGrowthInside1X128, 0);
+        assertEq(feeGrowthInside1X128, 0);
     }
 
     function test_getTickFeeGrowthOutside() public {
@@ -258,15 +260,18 @@ contract PoolStateLibraryTest is Test, Deployers {
         (, int24 currentTick,) = manager.getSlot0(poolId);
         assertEq(currentTick, -139);
 
-        int24 tick = -60;
+        // poke the LP so that fees are updated
+        modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(-60, 60, 0), ZERO_BYTES);
+
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
             PoolStateLibrary.getFeeGrowthInside(manager, poolId, -60, 60);
 
         bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), int24(-60), int24(60)));
 
-        (uint128 liquidity, uint256 feeGrowthInside0X128_, uint256 feeGrowthInside1X128_) =
+        (, uint256 feeGrowthInside0X128_, uint256 feeGrowthInside1X128_) =
             PoolStateLibrary.getPositionInfo(manager, poolId, positionId);
 
+        assertNotEq(feeGrowthInside0X128, 0);
         assertEq(feeGrowthInside0X128, feeGrowthInside0X128_);
         assertEq(feeGrowthInside1X128, feeGrowthInside1X128_);
     }
