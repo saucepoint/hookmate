@@ -21,15 +21,16 @@ library PoolStateLibrary {
 
         bytes32 data = manager.extsload(stateSlot);
         assembly {
-            // first 160 bits of data
-            sqrtPriceX96 := shr(96, data)
+            // first 160 bits of data, shift out the bottom 64 bits
+            sqrtPriceX96 := shr(64, data)
             // next 24 bits of data
-            tick := and(shr(160, data), 0xFFFFFF)
+            tick := and(shr(40, data), 0xFFFFFF)
             // next 16 bits of data
-            protocolFee := and(shr(186, data), 0xFFFF)
+            protocolFee := and(shr(24, data), 0xFFFF)
             // last 24 bits of data
             swapFee := and(data, 0xFFFFFF)
         }
+        // 160 bits -- 24 bits -- 16 bits -- 24 bits //
     }
 
     function getTickInfo(IPoolManager manager, PoolId poolId, int24 tick)
