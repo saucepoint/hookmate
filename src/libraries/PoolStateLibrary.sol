@@ -3,6 +3,7 @@ pragma solidity ^0.8.21;
 
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {console2} from "forge-std/console2.sol";
 
 library PoolStateLibrary {
     // forge inspect lib/v4-core/src/PoolManager.sol:PoolManager storage --pretty
@@ -20,17 +21,20 @@ library PoolStateLibrary {
         bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
 
         bytes32 data = manager.extsload(stateSlot);
+
+        //   32 bits  |24bits|16bits      |24 bits|160 bits
+        // 0x00000000 000bb8 0000         ffff75  0000000000000000fe3aa841ba359daa0ea9eff7
+        // ---------- | fee  |protocolfee | tick  | sqrtPriceX96
         assembly {
-            // first 160 bits of data, shift out the bottom 64 bits
-            sqrtPriceX96 := shr(64, data)
+            // bottom 160 bits of data
+            sqrtPriceX96 := and(data, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
             // next 24 bits of data
-            tick := and(shr(40, data), 0xFFFFFF)
+            tick := and(shr(160, data), 0xFFFFFF)
             // next 16 bits of data
-            protocolFee := and(shr(24, data), 0xFFFF)
+            protocolFee := and(shr(184, data), 0xFFFF)
             // last 24 bits of data
-            swapFee := and(data, 0xFFFFFF)
+            swapFee := and(shr(200, data), 0xFFFFFF)
         }
-        // 160 bits -- 24 bits -- 16 bits -- 24 bits //
     }
 
     function getTickInfo(IPoolManager manager, PoolId poolId, int24 tick)
@@ -163,12 +167,6 @@ library PoolStateLibrary {
         // first value slot of the mapping key: `pools[poolId].positions[positionId] (liquidity)
         bytes32 slot = keccak256(abi.encodePacked(positionId, positionMapping));
 
-        // // second value slot of the mapping key: `pools[poolId].positions[positionId].feeGrowthInside0LastX128`
-        // bytes32 slot1 = bytes32(uint256(slot0) + uint256(1));
-
-        // // third value slot of the mapping key: `pools[poolId].positions[positionId].feeGrowthInside1LastX128`
-        // bytes32 slot2 = bytes32(uint256(slot0) + uint256(2));
-
         // read all 3 words of the Position.Info struct
         bytes memory data = manager.extsload(slot, 3);
 
@@ -177,10 +175,6 @@ library PoolStateLibrary {
             feeGrowthInside0LastX128 := mload(add(data, 64))
             feeGrowthInside1LastX128 := mload(add(data, 96))
         }
-
-        // liquidity = uint128(uint256(manager.extsload(slot0)));
-        // feeGrowthInside0LastX128 = uint256(manager.extsload(slot1));
-        // feeGrowthInside1LastX128 = uint256(manager.extsload(slot2));
     }
 
     // Calculates the fee growth inside a tick range. More reliable than `feeGrowthInside0LastX128` returned by getPositionInfo
