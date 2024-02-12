@@ -18,8 +18,9 @@ import {Pool} from "v4-core/src/libraries/Pool.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
 
 import {PoolStateLibrary} from "../src/libraries/PoolStateLibrary.sol";
+import {V4TestHelpers} from "../src/test/V4TestHelpers.sol";
 
-contract PoolStateLibraryTest is Test, Deployers {
+contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
     using FixedPointMathLib for uint256;
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
@@ -297,65 +298,12 @@ contract PoolStateLibraryTest is Test, Deployers {
         int24 tickUpperB,
         uint128 liquidityDeltaB
     ) public {
-        vm.assume(0.1e18 < liquidityDeltaA);
+        (tickLowerA, tickUpperA, liquidityDeltaA,) =
+            createFuzzyLiquidity(modifyLiquidityRouter, key, tickLowerA, tickUpperA, liquidityDeltaA, ZERO_BYTES);
+        (tickLowerB, tickUpperB, liquidityDeltaB,) =
+            createFuzzyLiquidity(modifyLiquidityRouter, key, tickLowerB, tickUpperB, liquidityDeltaB, ZERO_BYTES);
 
-        vm.assume(0.1e18 < liquidityDeltaB);
-
-        vm.assume(liquidityDeltaA < Pool.tickSpacingToMaxLiquidityPerTick(key.tickSpacing));
-        vm.assume(liquidityDeltaB < Pool.tickSpacingToMaxLiquidityPerTick(key.tickSpacing));
-
-        tickLowerA = int24(
-            bound(
-                int256(tickLowerA),
-                int256(TickMath.minUsableTick(key.tickSpacing)),
-                int256(TickMath.maxUsableTick(key.tickSpacing))
-            )
-        );
-        tickUpperA = int24(
-            bound(
-                int256(tickUpperA),
-                int256(TickMath.minUsableTick(key.tickSpacing)),
-                int256(TickMath.maxUsableTick(key.tickSpacing))
-            )
-        );
-        tickLowerB = int24(
-            bound(
-                int256(tickLowerB),
-                int256(TickMath.minUsableTick(key.tickSpacing)),
-                int256(TickMath.maxUsableTick(key.tickSpacing))
-            )
-        );
-        tickUpperB = int24(
-            bound(
-                int256(tickUpperB),
-                int256(TickMath.minUsableTick(key.tickSpacing)),
-                int256(TickMath.maxUsableTick(key.tickSpacing))
-            )
-        );
-
-        // round down ticks
-        tickLowerA = (tickLowerA / key.tickSpacing) * key.tickSpacing;
-        tickUpperA = (tickUpperA / key.tickSpacing) * key.tickSpacing;
-        tickLowerB = (tickLowerB / key.tickSpacing) * key.tickSpacing;
-        tickUpperB = (tickUpperB / key.tickSpacing) * key.tickSpacing;
-
-        vm.assume(tickLowerA < tickUpperA);
-        vm.assume(tickLowerB < tickUpperB);
         vm.assume(tickLowerA != tickLowerB && tickUpperA != tickUpperB);
-
-        // positionA
-        modifyLiquidityRouter.modifyLiquidity(
-            key,
-            IPoolManager.ModifyLiquidityParams(tickLowerA, tickUpperA, int256(uint256(liquidityDeltaA))),
-            ZERO_BYTES
-        );
-
-        // positionB
-        modifyLiquidityRouter.modifyLiquidity(
-            key,
-            IPoolManager.ModifyLiquidityParams(tickLowerB, tickUpperB, int256(uint256(liquidityDeltaB))),
-            ZERO_BYTES
-        );
 
         bytes32 positionIdA = keccak256(abi.encodePacked(address(modifyLiquidityRouter), tickLowerA, tickUpperA));
         uint128 liquidityA = PoolStateLibrary.getPositionLiquidity(manager, poolId, positionIdA);
