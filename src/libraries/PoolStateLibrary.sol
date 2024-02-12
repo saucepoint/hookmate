@@ -273,6 +273,14 @@ library PoolStateLibrary {
         }
     }
 
+    /**
+     * @notice Retrieves the liquidity of a position.
+     * @dev Corresponds to pools[poolId].positions[positionId].liquidity. A more gas efficient version of getPositionInfo
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @param positionId The ID of the position.
+     * @return liquidity The liquidity of the position.
+     */
     function getPositionLiquidity(IPoolManager manager, PoolId poolId, bytes32 positionId)
         internal
         view
