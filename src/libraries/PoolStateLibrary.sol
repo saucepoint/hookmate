@@ -3,7 +3,6 @@ pragma solidity ^0.8.21;
 
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {IPoolStateLibrary} from "../interfaces/IPoolStateLibrary.sol";
 
 library PoolStateLibrary {
     // forge inspect lib/v4-core/src/PoolManager.sol:PoolManager storage --pretty
