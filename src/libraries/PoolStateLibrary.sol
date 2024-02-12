@@ -273,6 +273,23 @@ library PoolStateLibrary {
         }
     }
 
+    function getPositionLiquidity(IPoolManager manager, PoolId poolId, bytes32 positionId)
+        internal
+        view
+        returns (uint128 liquidity)
+    {
+        // slot key of Pool.State value: `pools[poolId]`
+        bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
+
+        // Pool.State: `mapping(bytes32 => Position.Info) positions;`
+        bytes32 positionMapping = bytes32(uint256(stateSlot) + POSITION_INFO_OFFSET);
+
+        // first value slot of the mapping key: `pools[poolId].positions[positionId] (liquidity)
+        bytes32 slot = keccak256(abi.encodePacked(positionId, positionMapping));
+
+        liquidity = uint128(uint256(manager.extsload(slot)));
+    }
+
     /**
      * @notice Live calculate the fee growth inside a tick range of a pool
      * @dev pools[poolId].feeGrowthInside0LastX128 in Position.Info is cached and can become stale. This function will live calculate the feeGrowthInside

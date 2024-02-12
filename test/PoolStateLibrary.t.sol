@@ -276,6 +276,96 @@ contract PoolStateLibraryTest is Test, Deployers {
         assertEq(feeGrowthInside1X128, feeGrowthInside1X128_);
     }
 
+    function test_getPositionLiquidity() public {
+        // create liquidity
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
+        );
+
+        bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), int24(-60), int24(60)));
+
+        uint128 liquidity = PoolStateLibrary.getPositionLiquidity(manager, poolId, positionId);
+
+        assertEq(liquidity, 10_000 ether);
+    }
+
+    function test_getPositionLiquidity_fuzz(
+        int24 tickLowerA,
+        int24 tickUpperA,
+        uint128 liquidityDeltaA,
+        int24 tickLowerB,
+        int24 tickUpperB,
+        uint128 liquidityDeltaB
+    ) public {
+        vm.assume(0.1e18 < liquidityDeltaA);
+
+        vm.assume(0.1e18 < liquidityDeltaB);
+
+        vm.assume(liquidityDeltaA < Pool.tickSpacingToMaxLiquidityPerTick(key.tickSpacing));
+        vm.assume(liquidityDeltaB < Pool.tickSpacingToMaxLiquidityPerTick(key.tickSpacing));
+
+        tickLowerA = int24(
+            bound(
+                int256(tickLowerA),
+                int256(TickMath.minUsableTick(key.tickSpacing)),
+                int256(TickMath.maxUsableTick(key.tickSpacing))
+            )
+        );
+        tickUpperA = int24(
+            bound(
+                int256(tickUpperA),
+                int256(TickMath.minUsableTick(key.tickSpacing)),
+                int256(TickMath.maxUsableTick(key.tickSpacing))
+            )
+        );
+        tickLowerB = int24(
+            bound(
+                int256(tickLowerB),
+                int256(TickMath.minUsableTick(key.tickSpacing)),
+                int256(TickMath.maxUsableTick(key.tickSpacing))
+            )
+        );
+        tickUpperB = int24(
+            bound(
+                int256(tickUpperB),
+                int256(TickMath.minUsableTick(key.tickSpacing)),
+                int256(TickMath.maxUsableTick(key.tickSpacing))
+            )
+        );
+
+        // round down ticks
+        tickLowerA = (tickLowerA / key.tickSpacing) * key.tickSpacing;
+        tickUpperA = (tickUpperA / key.tickSpacing) * key.tickSpacing;
+        tickLowerB = (tickLowerB / key.tickSpacing) * key.tickSpacing;
+        tickUpperB = (tickUpperB / key.tickSpacing) * key.tickSpacing;
+
+        vm.assume(tickLowerA < tickUpperA);
+        vm.assume(tickLowerB < tickUpperB);
+        vm.assume(tickLowerA != tickLowerB && tickUpperA != tickUpperB);
+
+        // positionA
+        modifyLiquidityRouter.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams(tickLowerA, tickUpperA, int256(uint256(liquidityDeltaA))),
+            ZERO_BYTES
+        );
+
+        // positionB
+        modifyLiquidityRouter.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams(tickLowerB, tickUpperB, int256(uint256(liquidityDeltaB))),
+            ZERO_BYTES
+        );
+
+        bytes32 positionIdA = keccak256(abi.encodePacked(address(modifyLiquidityRouter), tickLowerA, tickUpperA));
+        uint128 liquidityA = PoolStateLibrary.getPositionLiquidity(manager, poolId, positionIdA);
+        assertEq(liquidityA, liquidityDeltaA);
+
+        bytes32 positionIdB = keccak256(abi.encodePacked(address(modifyLiquidityRouter), tickLowerB, tickUpperB));
+        uint128 liquidityB = PoolStateLibrary.getPositionLiquidity(manager, poolId, positionIdB);
+        assertEq(liquidityB, liquidityDeltaB);
+    }
+
     /// Test Helper
     function swap(PoolKey memory key, bool zeroForOne, int256 amountSpecified, bytes memory hookData)
         internal
