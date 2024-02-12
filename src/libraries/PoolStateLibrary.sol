@@ -3,7 +3,7 @@ pragma solidity ^0.8.21;
 
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {console2} from "forge-std/console2.sol";
+import {IPoolStateLibrary} from "../interfaces/IPoolStateLibrary.sol";
 
 library PoolStateLibrary {
     // forge inspect lib/v4-core/src/PoolManager.sol:PoolManager storage --pretty
@@ -12,6 +12,15 @@ library PoolStateLibrary {
     // | pools                 | mapping(PoolId => struct Pool.State)                                | 8    | 0      | 32    | lib/v4-core/src/PoolManager.sol:PoolManager |
     uint256 public constant POOLS_SLOT = 8;
 
+    /**
+     * @dev Retrieves the slot 0 information of a pool.
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @return sqrtPriceX96 The square root of the price of the pool.
+     * @return tick The current tick of the pool.
+     * @return protocolFee The protocol fee of the pool.
+     * @return swapFee The swap fee of the pool.
+     */
     function getSlot0(IPoolManager manager, PoolId poolId)
         internal
         view
@@ -37,6 +46,16 @@ library PoolStateLibrary {
         }
     }
 
+    /**
+     * @dev Retrieves the tick information of a pool at a specific tick.
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @param tick The tick to retrieve information for.
+     * @return liquidityGross The gross liquidity at the tick.
+     * @return liquidityNet The net liquidity at the tick.
+     * @return feeGrowthOutside0X128 The fee growth outside the tick for token0.
+     * @return feeGrowthOutside1X128 The fee growth outside the tick for token1.
+     */
     function getTickInfo(IPoolManager manager, PoolId poolId, int24 tick)
         internal
         view
@@ -66,6 +85,14 @@ library PoolStateLibrary {
         }
     }
 
+    /**
+     * @dev Retrieves the liquidity information of a pool at a specific tick.
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @param tick The tick to retrieve liquidity for.
+     * @return liquidityGross The gross liquidity at the tick.
+     * @return liquidityNet The net liquidity at the tick.
+     */
     function getTickLiquidity(IPoolManager manager, PoolId poolId, int24 tick)
         internal
         view
@@ -87,6 +114,14 @@ library PoolStateLibrary {
         }
     }
 
+    /**
+     * @dev Retrieves the fee growth outside a tick range of a pool.
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @param tick The tick to retrieve fee growth for.
+     * @return feeGrowthOutside0X128 The fee growth outside the tick range for token0.
+     * @return feeGrowthOutside1X128 The fee growth outside the tick range for token1.
+     */
     function getTickFeeGrowthOutside(IPoolManager manager, PoolId poolId, int24 tick)
         internal
         view
@@ -108,6 +143,13 @@ library PoolStateLibrary {
         }
     }
 
+    /**
+     * @dev Retrieves the global fee growth of a pool.
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @return feeGrowthGlobal0 The global fee growth for token0.
+     * @return feeGrowthGlobal1 The global fee growth for token1.
+     */
     function getFeeGrowthGlobal(IPoolManager manager, PoolId poolId)
         internal
         view
@@ -126,6 +168,12 @@ library PoolStateLibrary {
         feeGrowthGlobal1 = uint256(manager.extsload(slot_feeGrowthGlobal1X128));
     }
 
+    /**
+     * @dev Retrieves the liquidity of a pool.
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @return liquidity The liquidity of the pool.
+     */
     function getLiquidity(IPoolManager manager, PoolId poolId) internal view returns (uint128 liquidity) {
         // value slot of poolId key: `pools[poolId]`
         bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(poolId), bytes32(POOLS_SLOT)));
@@ -136,6 +184,13 @@ library PoolStateLibrary {
         liquidity = uint128(uint256(manager.extsload(slot)));
     }
 
+    /**
+     * @dev Retrieves the tick bitmap of a pool at a specific tick.
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @param tick The tick to retrieve the bitmap for.
+     * @return tickBitmap The bitmap of the tick.
+     */
     function getTickBitmap(IPoolManager manager, PoolId poolId, int16 tick)
         internal
         view
@@ -153,6 +208,15 @@ library PoolStateLibrary {
         tickBitmap = uint256(manager.extsload(slot));
     }
 
+    /**
+     * @dev Retrieves the position information of a pool at a specific position ID.
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @param positionId The ID of the position.
+     * @return liquidity The liquidity of the position.
+     * @return feeGrowthInside0LastX128 The fee growth inside the position for token0.
+     * @return feeGrowthInside1LastX128 The fee growth inside the position for token1.
+     */
     function getPositionInfo(IPoolManager manager, PoolId poolId, bytes32 positionId)
         internal
         view
@@ -177,7 +241,15 @@ library PoolStateLibrary {
         }
     }
 
-    // Calculates the fee growth inside a tick range. More reliable than `feeGrowthInside0LastX128` returned by getPositionInfo
+    /**
+     * @dev Calculates the fee growth inside a tick range of a pool.
+     * @param manager The pool manager contract.
+     * @param poolId The ID of the pool.
+     * @param tickLower The lower tick of the range.
+     * @param tickUpper The upper tick of the range.
+     * @return feeGrowthInside0X128 The fee growth inside the tick range for token0.
+     * @return feeGrowthInside1X128 The fee growth inside the tick range for token1.
+     */
     function getFeeGrowthInside(IPoolManager manager, PoolId poolId, int24 tickLower, int24 tickUpper)
         internal
         view
