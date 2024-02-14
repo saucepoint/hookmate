@@ -128,8 +128,8 @@ library PoolStateLibrary {
 
         bytes32 value = manager.extsload(slot);
         assembly {
-            liquidityGross := shr(128, value)
-            liquidityNet := and(value, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+            liquidityNet := shr(128, value)
+            liquidityGross := and(value, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
         }
     }
 
