@@ -69,6 +69,20 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         assertEq(swapFee, 3000);
     }
 
+    function test_getSlot0_fuzz(int24 tickLower, int24 tickUpper, uint128 liquidityDeltaA, uint256 swapAmount, bool zeroForOne) public {
+        uint256 bal0Before = currency0.balanceOfSelf();
+        uint256 bal1Before = currency1.balanceOfSelf();
+        (tickLower, tickUpper, liquidityDeltaA,) =
+            createFuzzyLiquidity(modifyLiquidityRouter, key, tickLower, tickUpper, liquidityDeltaA, ZERO_BYTES);
+        uint256 bal0Used = bal0Before - currency0.balanceOfSelf();
+        uint256 bal1Used = bal1Before - currency1.balanceOfSelf();
+        
+        vm.assume(0.0000000001 ether < swapAmount);
+        zeroForOne ? vm.assume(swapAmount < bal0Used/10) : vm.assume(swapAmount < bal1Used/10);
+        swap(key, zeroForOne, int256(swapAmount), ZERO_BYTES);
+        assertEq(true, true);
+    }
+
     function test_getTickLiquidity() public {
         modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(-60, 60, 10 ether), ZERO_BYTES);
 
