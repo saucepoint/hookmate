@@ -14,6 +14,7 @@ import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
 import {Deployers} from "v4-core/test/utils/Deployers.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {Pool} from "v4-core/src/libraries/Pool.sol";
+import {TickBitmap} from "v4-core/src/libraries/TickBitmap.sol";
 
 import {PoolManager} from "v4-core/src/PoolManager.sol";
 
@@ -76,9 +77,10 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
             createFuzzyLiquidity(modifyLiquidityRouter, key, tickLower, tickUpper, liquidityDeltaA, ZERO_BYTES);
         uint256 bal0Used = bal0Before - currency0.balanceOfSelf();
         uint256 bal1Used = bal1Before - currency1.balanceOfSelf();
-        
+
+        // assume swap amount is material, and less than 1/5th of the liquidity        
         vm.assume(0.0000000001 ether < swapAmount);
-        zeroForOne ? vm.assume(swapAmount < bal0Used/10) : vm.assume(swapAmount < bal1Used/10);
+        vm.assume(swapAmount < bal0Used/5 && swapAmount < bal1Used/5);
         swap(key, zeroForOne, int256(swapAmount), ZERO_BYTES);
         assertEq(true, true);
     }
@@ -226,14 +228,34 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
     }
 
     function test_getTickBitmap() public {
+        int24 tickLower = -300;
+        int24 tickUpper = 300;
         // create liquidity
         modifyLiquidityRouter.modifyLiquidity(
-            key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
+            key, IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, 10_000 ether), ZERO_BYTES
         );
 
-        // TODO: why does fail for -60 or 60 :thinking:
-        uint256 tickBitmap = PoolStateLibrary.getTickBitmap(manager, poolId, 0);
+        (int16 wordPos, uint8 bitPos) = TickBitmap.position(tickLower / key.tickSpacing);
+        uint256 tickBitmap = PoolStateLibrary.getTickBitmap(manager, poolId, wordPos);
         assertNotEq(tickBitmap, 0);
+        assertEq(tickBitmap, 1 << bitPos);
+
+        (wordPos, bitPos) = TickBitmap.position(tickUpper / key.tickSpacing);
+        tickBitmap = PoolStateLibrary.getTickBitmap(manager, poolId, wordPos);
+        assertNotEq(tickBitmap, 0);
+        assertEq(tickBitmap, 1 << bitPos);
+    }
+
+    function test_getTickBitmap_fuzz(int24 tickLower, int24 tickUpper, uint128 liquidityDelta) public {
+        // TODO: if theres neighboring ticks, the bitmap is not a shifted bit
+        (tickLower, tickUpper, liquidityDelta,) =
+            createFuzzyLiquidity(modifyLiquidityRouter, key, tickLower, tickUpper, liquidityDelta, ZERO_BYTES);
+
+        (int16 wordPos, uint8 bitPos) = TickBitmap.position(tickLower / key.tickSpacing);
+
+        uint256 tickBitmap = PoolStateLibrary.getTickBitmap(manager, poolId, wordPos);
+        assertNotEq(tickBitmap, 0);
+        assertEq(tickBitmap, 1 << bitPos);
     }
 
     function test_getPositionInfo() public {
