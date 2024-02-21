@@ -70,7 +70,13 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         assertEq(swapFee, 3000);
     }
 
-    function test_getSlot0_fuzz(int24 tickLower, int24 tickUpper, uint128 liquidityDeltaA, uint256 swapAmount, bool zeroForOne) public {
+    function test_getSlot0_fuzz(
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidityDeltaA,
+        uint256 swapAmount,
+        bool zeroForOne
+    ) public {
         uint256 bal0Before = currency0.balanceOfSelf();
         uint256 bal1Before = currency1.balanceOfSelf();
         (tickLower, tickUpper, liquidityDeltaA,) =
@@ -78,9 +84,9 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         uint256 bal0Used = bal0Before - currency0.balanceOfSelf();
         uint256 bal1Used = bal1Before - currency1.balanceOfSelf();
 
-        // assume swap amount is material, and less than 1/5th of the liquidity        
+        // assume swap amount is material, and less than 1/5th of the liquidity
         vm.assume(0.0000000001 ether < swapAmount);
-        vm.assume(swapAmount < bal0Used/5 && swapAmount < bal1Used/5);
+        vm.assume(swapAmount < bal0Used / 5 && swapAmount < bal1Used / 5);
         swap(key, zeroForOne, int256(swapAmount), ZERO_BYTES);
         assertEq(true, true);
     }
@@ -252,10 +258,17 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
             createFuzzyLiquidity(modifyLiquidityRouter, key, tickLower, tickUpper, liquidityDelta, ZERO_BYTES);
 
         (int16 wordPos, uint8 bitPos) = TickBitmap.position(tickLower / key.tickSpacing);
+        (int16 wordPosUpper, uint8 bitPosUpper) = TickBitmap.position(tickUpper / key.tickSpacing);
 
         uint256 tickBitmap = PoolStateLibrary.getTickBitmap(manager, poolId, wordPos);
         assertNotEq(tickBitmap, 0);
-        assertEq(tickBitmap, 1 << bitPos);
+
+        // in fuzz tests, the tickLower and tickUpper might exist on the same word
+        if (wordPos == wordPosUpper) {
+            assertEq(tickBitmap, (1 << bitPos) | (1 << bitPosUpper));
+        } else {
+            assertEq(tickBitmap, 1 << bitPos);
+        }
     }
 
     function test_getPositionInfo() public {
