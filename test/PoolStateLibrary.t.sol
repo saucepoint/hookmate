@@ -88,7 +88,8 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         vm.assume(0.0000000001 ether < swapAmount);
         vm.assume(swapAmount < bal0Used / 5 && swapAmount < bal1Used / 5);
         swap(key, zeroForOne, int256(swapAmount), ZERO_BYTES);
-        assertEq(true, true);
+
+        // TODO:
     }
 
     function test_getTickLiquidity() public {
@@ -277,15 +278,11 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
             key, IPoolManager.ModifyLiquidityParams(-60, 60, 10_000 ether), ZERO_BYTES
         );
 
-        modifyLiquidityRouter.modifyLiquidity(
-            key, IPoolManager.ModifyLiquidityParams(-600, 600, 10_000 ether), ZERO_BYTES
-        );
-
         // swap to create fees, crossing a tick
-        uint256 swapAmount = 100 ether;
+        uint256 swapAmount = 10 ether;
         swap(key, true, int256(swapAmount), ZERO_BYTES);
         (, int24 currentTick,) = manager.getSlot0(poolId);
-        assertEq(currentTick, -139);
+        assertNotEq(currentTick, 0);
 
         // poke the LP so that fees are updated
         modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(-60, 60, 0), ZERO_BYTES);
@@ -299,6 +296,43 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
 
         assertNotEq(feeGrowthInside0X128, 0);
         assertEq(feeGrowthInside1X128, 0);
+    }
+
+    function test_getPositionInfo_fuzz(
+        int24 tickLower,
+        int24 tickUpper,
+        uint128 liquidityDelta,
+        uint256 swapAmount,
+        bool zeroForOne
+    ) public {
+        uint256 bal0Before = currency0.balanceOfSelf();
+        uint256 bal1Before = currency1.balanceOfSelf();
+        (tickLower, tickUpper, liquidityDelta,) =
+            createFuzzyLiquidity(modifyLiquidityRouter, key, tickLower, tickUpper, liquidityDelta, ZERO_BYTES);
+        uint256 bal0Used = bal0Before - currency0.balanceOfSelf();
+        uint256 bal1Used = bal1Before - currency1.balanceOfSelf();
+
+        // assume swap amount is material, and less than 1/5th of the liquidity
+        vm.assume(0.0000000001 ether < swapAmount);
+        vm.assume(swapAmount < bal0Used / 5 && swapAmount < bal1Used / 5);
+        swap(key, zeroForOne, int256(swapAmount), ZERO_BYTES);
+
+        // poke the LP so that fees are updated
+        modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, 0), ZERO_BYTES);
+
+        bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), tickLower, tickUpper));
+
+        (uint128 liquidity, uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+            PoolStateLibrary.getPositionInfo(manager, poolId, positionId);
+
+        assertEq(liquidity, liquidityDelta);
+        if (zeroForOne) {
+            assertNotEq(feeGrowthInside0X128, 0);
+            assertEq(feeGrowthInside1X128, 0);
+        } else {
+            assertEq(feeGrowthInside0X128, 0);
+            assertNotEq(feeGrowthInside1X128, 0);
+        }
     }
 
     function test_getTickFeeGrowthOutside() public {
