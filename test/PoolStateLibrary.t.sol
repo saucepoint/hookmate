@@ -427,11 +427,12 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         (, int24 currentTick,) = manager.getSlot0(poolId);
         assertEq(currentTick, -139);
 
-        // poke the LP so that fees are updated
-        modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(-60, 60, 0), ZERO_BYTES);
-
+        // calculated live
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
             PoolStateLibrary.getFeeGrowthInside(manager, poolId, -60, 60);
+
+        // poke the LP so that fees are updated
+        modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(-60, 60, 0), ZERO_BYTES);
 
         bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), int24(-60), int24(60)));
 
@@ -462,14 +463,14 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
 
         swap(key, zeroForOne, int256(100e18), ZERO_BYTES);
 
+        // calculated live
+        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+            PoolStateLibrary.getFeeGrowthInside(manager, poolId, tickLower, tickUpper);
+
         // poke the LP so that fees are updated
         modifyLiquidityRouter.modifyLiquidity(
             key, IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, 0), ZERO_BYTES
         );
-
-        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-            PoolStateLibrary.getFeeGrowthInside(manager, poolId, tickLower, tickUpper);
-
         bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), tickLower, tickUpper));
 
         (, uint256 feeGrowthInside0X128_, uint256 feeGrowthInside1X128_) =
