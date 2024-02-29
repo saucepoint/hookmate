@@ -77,19 +77,27 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         uint256 swapAmount,
         bool zeroForOne
     ) public {
-        uint256 bal0Before = currency0.balanceOfSelf();
-        uint256 bal1Before = currency1.balanceOfSelf();
-        (tickLower, tickUpper, liquidityDeltaA,) =
+        BalanceDelta delta;
+        (tickLower, tickUpper, liquidityDeltaA, delta) =
             createFuzzyLiquidity(modifyLiquidityRouter, key, tickLower, tickUpper, liquidityDeltaA, ZERO_BYTES);
-        uint256 bal0Used = bal0Before - currency0.balanceOfSelf();
-        uint256 bal1Used = bal1Before - currency1.balanceOfSelf();
 
         // assume swap amount is material, and less than 1/5th of the liquidity
         vm.assume(0.0000000001 ether < swapAmount);
-        vm.assume(swapAmount < bal0Used / 5 && swapAmount < bal1Used / 5);
+        vm.assume(
+            swapAmount < uint256(int256(delta.amount0())) / 5 && swapAmount < uint256(int256(delta.amount1())) / 5
+        );
         swap(key, zeroForOne, int256(swapAmount), ZERO_BYTES);
 
-        // TODO:
+        (uint160 sqrtPriceX96, int24 tick, uint16 protocolFee, uint24 swapFee) =
+            PoolStateLibrary.getSlot0(manager, poolId);
+
+        (uint160 sqrtPriceX96_, int24 tick_, uint16 protocolFee_) = manager.getSlot0(poolId);
+
+        assertEq(sqrtPriceX96, sqrtPriceX96_);
+        assertEq(tick, tick_);
+        assertEq(protocolFee, 0);
+        assertEq(protocolFee, protocolFee_);
+        assertEq(swapFee, 3000);
     }
 
     function test_getTickLiquidity() public {
@@ -305,20 +313,21 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         uint256 swapAmount,
         bool zeroForOne
     ) public {
-        uint256 bal0Before = currency0.balanceOfSelf();
-        uint256 bal1Before = currency1.balanceOfSelf();
-        (tickLower, tickUpper, liquidityDelta,) =
+        BalanceDelta delta;
+        (tickLower, tickUpper, liquidityDelta, delta) =
             createFuzzyLiquidity(modifyLiquidityRouter, key, tickLower, tickUpper, liquidityDelta, ZERO_BYTES);
-        uint256 bal0Used = bal0Before - currency0.balanceOfSelf();
-        uint256 bal1Used = bal1Before - currency1.balanceOfSelf();
 
         // assume swap amount is material, and less than 1/5th of the liquidity
         vm.assume(0.0000000001 ether < swapAmount);
-        vm.assume(swapAmount < bal0Used / 5 && swapAmount < bal1Used / 5);
+        vm.assume(
+            swapAmount < uint256(int256(delta.amount0())) / 5 && swapAmount < uint256(int256(delta.amount1())) / 5
+        );
         swap(key, zeroForOne, int256(swapAmount), ZERO_BYTES);
 
         // poke the LP so that fees are updated
-        modifyLiquidityRouter.modifyLiquidity(key, IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, 0), ZERO_BYTES);
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, 0), ZERO_BYTES
+        );
 
         bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), tickLower, tickUpper));
 
@@ -335,6 +344,7 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         }
     }
 
+    // a bit annoying to fuzz since you need to get feeGrowth outside of a tick
     function test_getTickFeeGrowthOutside() public {
         // create liquidity
         modifyLiquidityRouter.modifyLiquidity(
@@ -363,6 +373,7 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         assertEq(feeGrowthOutside1X128, outside1);
     }
 
+    // also hard to fuzz because of feeGrowthOutside
     function test_getTickInfo() public {
         // create liquidity
         modifyLiquidityRouter.modifyLiquidity(
@@ -425,6 +436,42 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
             PoolStateLibrary.getPositionInfo(manager, poolId, positionId);
 
         assertNotEq(feeGrowthInside0X128, 0);
+        assertEq(feeGrowthInside0X128, feeGrowthInside0X128_);
+        assertEq(feeGrowthInside1X128, feeGrowthInside1X128_);
+    }
+
+    function test_getFeeGrowthInside_fuzz(int24 tickLower, int24 tickUpper, uint128 liquidityDelta, bool zeroForOne)
+        public
+    {
+        modifyLiquidityRouter.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams(
+                TickMath.minUsableTick(key.tickSpacing), TickMath.maxUsableTick(key.tickSpacing), 10_000 ether
+            ),
+            ZERO_BYTES
+        );
+
+        BalanceDelta delta;
+        (tickLower, tickUpper, liquidityDelta, delta) =
+            createFuzzyLiquidity(modifyLiquidityRouter, key, tickLower, tickUpper, liquidityDelta, ZERO_BYTES);
+        vm.assume(delta.amount0() != 0);
+        vm.assume(delta.amount1() != 0);
+
+        swap(key, zeroForOne, int256(100e18), ZERO_BYTES);
+
+        // poke the LP so that fees are updated
+        modifyLiquidityRouter.modifyLiquidity(
+            key, IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, 0), ZERO_BYTES
+        );
+
+        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+            PoolStateLibrary.getFeeGrowthInside(manager, poolId, tickLower, tickUpper);
+
+        bytes32 positionId = keccak256(abi.encodePacked(address(modifyLiquidityRouter), tickLower, tickUpper));
+
+        (, uint256 feeGrowthInside0X128_, uint256 feeGrowthInside1X128_) =
+            PoolStateLibrary.getPositionInfo(manager, poolId, positionId);
+
         assertEq(feeGrowthInside0X128, feeGrowthInside0X128_);
         assertEq(feeGrowthInside1X128, feeGrowthInside1X128_);
     }
