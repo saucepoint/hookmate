@@ -12,6 +12,13 @@ import {Pool} from "v4-core/src/libraries/Pool.sol";
 import {PoolModifyLiquidityTest} from "v4-core/src/test/PoolModifyLiquidityTest.sol";
 
 contract V4TestHelpers is CommonBase, StdUtils {
+    /// @dev Creates v4 liquidity, using fuzzed values
+    /// @param modifyLiquidityRouter A deployed PoolModifyLiquidityTest to handle liquidity
+    /// @param key The pool key
+    /// @param tickLower The lower tick
+    /// @param tickUpper The upper tick
+    /// @param liquidityDelta The liquidity delta
+    /// @param hookData The hook data
     function createFuzzyLiquidity(
         PoolModifyLiquidityTest modifyLiquidityRouter,
         PoolKey memory key,

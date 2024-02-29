@@ -24,7 +24,7 @@ forge install uniswapfoundation/hookmate
 
 _until v4-core code-freezes, the interfaces are subject to changes_
 
-A solidity library to access `Pool.State` information -- even the nested mappings. Relies on the arbitrary storage slot reads exposed via `PoolManager.extsload`
+A solidity library to access `Pool.State` information -- *even the nested mappings*. Relies on the arbitrary storage slot reads exposed via `PoolManager.extsload`
 
 Every value in `mapping(PoolId id => Pool.State) public pools;` is available via PoolStateLibrary:
 
@@ -53,4 +53,28 @@ struct State {
         | uint256 feeGrowthInside0LastX128;       // getFeeGrowthInside() (calculated live)
         | uint256 feeGrowthInside1LastX128;       // ..
 }
+```
+
+Example Usage: Get Position Fees
+```solidity
+import {PoolStateLibrary} from "hookmate/libraries/PoolStateLibrary.sol";
+import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+
+...
+
+using PoolIdLibrary for PoolKey;
+
+...
+
+IPoolManager manager = address(0xABC);
+address liquidityOwner = address(0x123); // likely will be PoolModifyLiquidityTest
+int24 tickLower = -60;
+int24 tickUpper = 60;
+PoolKey memory key = PoolKey(...);
+
+bytes32 positionId = keccak256(abi.encodePacked(address(liquidityOwner), tickLower, tickUpper));
+
+(uint128 liquidity, uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+    PoolStateLibrary.getPositionInfo(manager, key.toId(), positionId);
+
 ```
