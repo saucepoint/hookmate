@@ -41,7 +41,7 @@ struct State {
         | uint24 swapFee;
     uint256 feeGrowthGlobal0X128;  // getFeeGrowthGlobal()
     uint256 feeGrowthGlobal1X128;  // ..
-    uint128 liquidity;
+    uint128 liquidity;             // getLiquidity()
     mapping(int24 => TickInfo) ticks;      // getTickInfo()
         | uint128 liquidityGross;          // getTickLiquidity()
         | int128 liquidityNet;             // ..
