@@ -518,21 +518,4 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         uint128 liquidityB = PoolStateLibrary.getPositionLiquidity(manager, poolId, positionIdB);
         assertEq(liquidityB, liquidityDeltaB);
     }
-
-    /// Test Helper
-    // function swap(PoolKey memory key, bool zeroForOne, int256 amountSpecified, bytes memory hookData)
-    //     internal
-    //     returns (BalanceDelta delta)
-    // {
-    //     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
-    //         zeroForOne: zeroForOne,
-    //         amountSpecified: amountSpecified,
-    //         sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1 // unlimited impact
-    //     });
-
-    //     PoolSwapTest.TestSettings memory testSettings =
-    //         PoolSwapTest.TestSettings({withdrawTokens: true, settleUsingTransfer: true, currencyAlreadySent: false});
-
-    //     delta = swapRouter.swap(key, params, testSettings, hookData);
-    // }
 }
