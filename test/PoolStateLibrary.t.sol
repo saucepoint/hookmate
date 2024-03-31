@@ -37,7 +37,7 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         // Create the pool
         key = PoolKey(currency0, currency1, 3000, 60, IHooks(address(0x0)));
         poolId = key.toId();
-        initializeRouter.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
+        manager.initialize(key, SQRT_RATIO_1_1, ZERO_BYTES);
     }
 
     function test_getSlot0() public {
@@ -52,14 +52,14 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
 
         // swap to create fees, crossing a tick
         uint256 swapAmount = 100 ether;
-        swap(key, true, int256(swapAmount), ZERO_BYTES);
-        (, int24 currentTick,) = manager.getSlot0(poolId);
+        swap(key, true, -int256(swapAmount), ZERO_BYTES);
+        (, int24 currentTick,,) = manager.getSlot0(poolId);
         assertEq(currentTick, -139);
 
         (uint160 sqrtPriceX96, int24 tick, uint16 protocolFee, uint24 swapFee) =
             PoolStateLibrary.getSlot0(manager, poolId);
 
-        (uint160 sqrtPriceX96_, int24 tick_, uint16 protocolFee_) = manager.getSlot0(poolId);
+        (uint160 sqrtPriceX96_, int24 tick_, uint16 protocolFee_, uint24 _swapFee) = manager.getSlot0(poolId);
 
         assertEq(sqrtPriceX96, sqrtPriceX96_);
         assertEq(tick, tick_);
@@ -67,6 +67,7 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         assertEq(protocolFee, 0);
         assertEq(protocolFee, protocolFee_);
         assertEq(swapFee, 3000);
+        assertEq(swapFee, _swapFee);
     }
 
     function test_getSlot0_fuzz(
@@ -83,20 +84,21 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         // assume swap amount is material, and less than 1/5th of the liquidity
         vm.assume(0.0000000001 ether < swapAmount);
         vm.assume(
-            swapAmount < uint256(int256(delta.amount0())) / 5 && swapAmount < uint256(int256(delta.amount1())) / 5
+            swapAmount < uint256(int256(-delta.amount0())) / 5 && swapAmount < uint256(int256(-delta.amount1())) / 5
         );
-        swap(key, zeroForOne, int256(swapAmount), ZERO_BYTES);
+        swap(key, zeroForOne, -int256(swapAmount), ZERO_BYTES);
 
         (uint160 sqrtPriceX96, int24 tick, uint16 protocolFee, uint24 swapFee) =
             PoolStateLibrary.getSlot0(manager, poolId);
 
-        (uint160 sqrtPriceX96_, int24 tick_, uint16 protocolFee_) = manager.getSlot0(poolId);
+        (uint160 sqrtPriceX96_, int24 tick_, uint16 protocolFee_, uint24 _swapFee) = manager.getSlot0(poolId);
 
         assertEq(sqrtPriceX96, sqrtPriceX96_);
         assertEq(tick, tick_);
         assertEq(protocolFee, 0);
         assertEq(protocolFee, protocolFee_);
         assertEq(swapFee, 3000);
+        assertEq(swapFee, _swapFee);
     }
 
     function test_getTickLiquidity() public {
@@ -191,7 +193,7 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
 
         // swap to create fees on the output token (currency1)
         uint256 swapAmount = 10 ether;
-        swap(key, true, int256(swapAmount), ZERO_BYTES);
+        swap(key, true, -int256(swapAmount), ZERO_BYTES);
 
         (feeGrowthGlobal0, feeGrowthGlobal1) = PoolStateLibrary.getFeeGrowthGlobal(manager, poolId);
 
@@ -213,7 +215,7 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
 
         // swap to create fees on the input token (currency0)
         uint256 swapAmount = 10 ether;
-        swap(key, false, int256(swapAmount), ZERO_BYTES);
+        swap(key, false, -int256(swapAmount), ZERO_BYTES);
 
         (feeGrowthGlobal0, feeGrowthGlobal1) = PoolStateLibrary.getFeeGrowthGlobal(manager, poolId);
 
@@ -291,8 +293,8 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
 
         // swap to create fees, crossing a tick
         uint256 swapAmount = 10 ether;
-        swap(key, true, int256(swapAmount), ZERO_BYTES);
-        (, int24 currentTick,) = manager.getSlot0(poolId);
+        swap(key, true, -int256(swapAmount), ZERO_BYTES);
+        (, int24 currentTick,,) = manager.getSlot0(poolId);
         assertNotEq(currentTick, 0);
 
         // poke the LP so that fees are updated
@@ -323,9 +325,9 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         // assume swap amount is material, and less than 1/5th of the liquidity
         vm.assume(0.0000000001 ether < swapAmount);
         vm.assume(
-            swapAmount < uint256(int256(delta.amount0())) / 5 && swapAmount < uint256(int256(delta.amount1())) / 5
+            swapAmount < uint256(int256(-delta.amount0())) / 5 && swapAmount < uint256(int256(-delta.amount1())) / 5
         );
-        swap(key, zeroForOne, int256(swapAmount), ZERO_BYTES);
+        swap(key, zeroForOne, -int256(swapAmount), ZERO_BYTES);
 
         // poke the LP so that fees are updated
         modifyLiquidityRouter.modifyLiquidity(
@@ -360,8 +362,8 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
 
         // swap to create fees, crossing a tick
         uint256 swapAmount = 100 ether;
-        swap(key, true, int256(swapAmount), ZERO_BYTES);
-        (, int24 currentTick,) = manager.getSlot0(poolId);
+        swap(key, true, -int256(swapAmount), ZERO_BYTES);
+        (, int24 currentTick,,) = manager.getSlot0(poolId);
         assertEq(currentTick, -139);
 
         int24 tick = -60;
@@ -389,8 +391,8 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
 
         // swap to create fees, crossing a tick
         uint256 swapAmount = 100 ether;
-        swap(key, true, int256(swapAmount), ZERO_BYTES);
-        (, int24 currentTick,) = manager.getSlot0(poolId);
+        swap(key, true, -int256(swapAmount), ZERO_BYTES);
+        (, int24 currentTick,,) = manager.getSlot0(poolId);
         assertEq(currentTick, -139);
 
         int24 tick = -60;
@@ -423,8 +425,8 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
 
         // swap to create fees, crossing a tick
         uint256 swapAmount = 100 ether;
-        swap(key, true, int256(swapAmount), ZERO_BYTES);
-        (, int24 currentTick,) = manager.getSlot0(poolId);
+        swap(key, true, -int256(swapAmount), ZERO_BYTES);
+        (, int24 currentTick,,) = manager.getSlot0(poolId);
         assertEq(currentTick, -139);
 
         // calculated live
@@ -461,7 +463,7 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
         vm.assume(delta.amount0() != 0);
         vm.assume(delta.amount1() != 0);
 
-        swap(key, zeroForOne, int256(100e18), ZERO_BYTES);
+        swap(key, zeroForOne, -int256(100e18), ZERO_BYTES);
 
         // calculated live
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
@@ -518,19 +520,19 @@ contract PoolStateLibraryTest is Test, Deployers, V4TestHelpers {
     }
 
     /// Test Helper
-    function swap(PoolKey memory key, bool zeroForOne, int256 amountSpecified, bytes memory hookData)
-        internal
-        returns (BalanceDelta delta)
-    {
-        IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
-            zeroForOne: zeroForOne,
-            amountSpecified: amountSpecified,
-            sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1 // unlimited impact
-        });
+    // function swap(PoolKey memory key, bool zeroForOne, int256 amountSpecified, bytes memory hookData)
+    //     internal
+    //     returns (BalanceDelta delta)
+    // {
+    //     IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
+    //         zeroForOne: zeroForOne,
+    //         amountSpecified: amountSpecified,
+    //         sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1 // unlimited impact
+    //     });
 
-        PoolSwapTest.TestSettings memory testSettings =
-            PoolSwapTest.TestSettings({withdrawTokens: true, settleUsingTransfer: true, currencyAlreadySent: false});
+    //     PoolSwapTest.TestSettings memory testSettings =
+    //         PoolSwapTest.TestSettings({withdrawTokens: true, settleUsingTransfer: true, currencyAlreadySent: false});
 
-        delta = swapRouter.swap(key, params, testSettings, hookData);
-    }
+    //     delta = swapRouter.swap(key, params, testSettings, hookData);
+    // }
 }
